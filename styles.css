@@ -1039,7 +1039,7 @@ body.wall-mode .page { max-width: 1600px; }
   .grid { grid-template-columns: minmax(0, 1fr); }
   .card--wide { grid-column: auto; }
   .hero { flex-direction: column; }
-  .hero__side { flex: 1 1 auto; }
+  .hero__main, .hero__side { flex: 0 0 auto; }
 }
 
 @media (max-width: 560px) {
