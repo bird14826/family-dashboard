@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>우리집 가족 대시보드</title>
+<meta name="description" content="이든 · 이솔 · 이온이의 포켓몬 퀘스트, 오늘 일정과 준비물, 가족 캘린더와 위시리스트를 한 화면에서 보는 우리집 대시보드.">
+<meta name="theme-color" content="#fff7ed">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="우리집 대시보드">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='88'%3E%E2%9A%A1%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<a class="skip-link" href="#kids-section">본문으로 바로가기</a>
+
+<div class="page">
+
+  <!-- ============ 헤더 ============ -->
+  <header class="hero">
+    <div class="hero__main">
+      <p class="hero__eyebrow">우리 가족의 오늘</p>
+      <h1 class="hero__title">우리집 가족 대시보드</h1>
+      <p class="hero__date" id="today-date">오늘</p>
+      <p class="hero__clock" id="clock" aria-live="off">지금은 --:--</p>
+    </div>
+
+    <div class="hero__side">
+      <div class="weather-card" id="weather-card">
+        <div class="weather-card__row">
+          <span class="weather-card__emoji" id="weather-emoji">☁️</span>
+          <div>
+            <p class="weather-card__place" id="weather-place">송도</p>
+            <p class="weather-card__temp" id="weather-temp">--~--°C</p>
+          </div>
+        </div>
+        <p class="weather-card__summary" id="weather-summary">날씨를 불러오는 중…</p>
+        <p class="air-badge" id="air-badge" hidden></p>
+        <p class="weather-card__outfit" id="weather-outfit"></p>
+      </div>
+
+      <div class="hero__actions">
+        <button type="button" class="btn btn--ghost" id="btn-fullscreen" aria-pressed="false">
+          <span class="btn__icon" aria-hidden="true">🖥️</span> 대기화면
+        </button>
+        <button type="button" class="btn btn--ghost" id="btn-sync">
+          <span class="btn__icon" aria-hidden="true">⚙️</span> 실시간 동기화 설정
+        </button>
+        <p class="sync-chip" id="sync-chip" data-state="local">💾 이 기기에 저장 중</p>
+      </div>
+    </div>
+  </header>
+
+  <p class="banner" id="data-banner" hidden>데이터 파일(data.json)을 읽지 못했어요. 잠시 뒤 새로고침 해 주세요.</p>
+
+  <main class="grid">
+
+    <!-- ============ 아이들 퀘스트 ============ -->
+    <section class="card card--wide" id="kids-section" aria-labelledby="kids-title">
+      <div class="card__head">
+        <h2 class="card__title" id="kids-title">오늘의 퀘스트 <span aria-hidden="true">🎮</span></h2>
+        <p class="card__sub">퀘스트를 하나씩 깨면 XP가 쌓여요. 100 XP마다 레벨 업!</p>
+      </div>
+      <div class="kids" id="kids-grid"><!-- app.js --></div>
+    </section>
+
+    <!-- ============ 오늘 일정 & 준비물 ============ -->
+    <section class="card" id="today-section" aria-labelledby="today-title">
+      <div class="card__head">
+        <h2 class="card__title" id="today-title">오늘 일정 &amp; 준비물 <span aria-hidden="true">🎒</span></h2>
+        <p class="card__sub" id="today-date-sub"></p>
+      </div>
+      <ul class="today-list" id="today-list"><!-- app.js --></ul>
+    </section>
+
+    <!-- ============ D-Day ============ -->
+    <section class="card" id="dday-section" aria-labelledby="dday-title">
+      <div class="card__head">
+        <h2 class="card__title" id="dday-title">D-Day <span aria-hidden="true">⏰</span></h2>
+        <p class="card__sub">가까운 일정부터 보여드려요.</p>
+      </div>
+      <ul class="dday-list" id="dday-list"><!-- app.js --></ul>
+    </section>
+
+    <!-- ============ 캘린더 ============ -->
+    <section class="card" id="calendar-section" aria-labelledby="calendar-title">
+      <div class="card__head">
+        <h2 class="card__title" id="calendar-title">가족 캘린더 <span aria-hidden="true">🗓️</span></h2>
+        <p class="card__sub">날짜를 누르면 그날 일정이 보여요.</p>
+      </div>
+
+      <div class="calendar">
+        <div class="calendar__bar">
+          <button type="button" class="icon-btn" id="cal-prev" aria-label="이전 달">‹</button>
+          <p class="calendar__month" id="cal-month">2026년 11월</p>
+          <button type="button" class="icon-btn" id="cal-next" aria-label="다음 달">›</button>
+        </div>
+        <div class="calendar__weekdays" aria-hidden="true">
+          <span class="wd wd--sun">일</span><span class="wd">월</span><span class="wd">화</span>
+          <span class="wd">수</span><span class="wd">목</span><span class="wd">금</span><span class="wd wd--sat">토</span>
+        </div>
+        <div class="calendar__grid" id="cal-grid" role="grid" aria-label="가족 캘린더"></div>
+      </div>
+
+      <div class="day-detail" id="day-detail" aria-live="polite"></div>
+
+      <ul class="legend">
+        <li><span class="dot dot--school"></span> 학교·원 일정</li>
+        <li><span class="dot dot--family"></span> 가족 일정</li>
+        <li><span class="dot dot--today"></span> 오늘</li>
+      </ul>
+    </section>
+
+    <!-- ============ 위시리스트 ============ -->
+    <section class="card" id="wishlist-section" aria-labelledby="wish-title">
+      <div class="card__head">
+        <h2 class="card__title" id="wish-title">이거 사주세요! <span aria-hidden="true">🎁</span></h2>
+        <p class="card__sub">필요한 걸 적어두면 장 볼 때 한 번에 확인할 수 있어요.</p>
+      </div>
+
+      <form class="form" id="wish-form" autocomplete="off">
+        <div class="form__row">
+          <label class="field field--sm">
+            <span class="field__label">누구</span>
+            <select id="wish-who" required></select>
+          </label>
+          <label class="field field--grow">
+            <span class="field__label">무엇</span>
+            <input type="text" id="wish-item" maxlength="60" placeholder="예: 색연필, 실내화" required>
+          </label>
+          <label class="field field--xs">
+            <span class="field__label">가격</span>
+            <input type="number" id="wish-price" min="0" step="100" inputmode="numeric" placeholder="0">
+          </label>
+        </div>
+        <div class="form__row">
+          <label class="field field--grow">
+            <span class="field__label">메모 (선택)</span>
+            <input type="text" id="wish-memo" maxlength="80" placeholder="예: 문구점에서, 파란색">
+          </label>
+          <button type="submit" class="btn btn--primary">+ 추가</button>
+        </div>
+      </form>
+
+      <ul class="wishlist" id="wishlist"><!-- app.js --></ul>
+      <p class="empty" id="wish-empty">아직 담긴 게 없어요. 첫 소원을 적어보세요!</p>
+      <div class="list-foot">
+        <p class="total" id="wish-total" hidden></p>
+        <button type="button" class="btn btn--text" id="wish-clear-done" hidden>산 것 모두 지우기</button>
+      </div>
+    </section>
+
+    <!-- ============ 가족 우체통 ============ -->
+    <section class="card" id="notes-section" aria-labelledby="notes-title">
+      <div class="card__head">
+        <h2 class="card__title" id="notes-title">가족 우체통 <span aria-hidden="true">📮</span></h2>
+        <p class="card__sub">한 마디 남겨두면 가족이 화면에서 바로 봐요.</p>
+      </div>
+
+      <div class="quick-notes" id="quick-notes"><!-- app.js --></div>
+
+      <form class="form" id="note-form" autocomplete="off">
+        <div class="form__row">
+          <label class="field field--sm">
+            <span class="field__label">누가</span>
+            <select id="note-from" required></select>
+          </label>
+          <label class="field field--grow">
+            <span class="field__label">한 마디</span>
+            <input type="text" id="note-text" maxlength="120" placeholder="예: 오늘 6시에 데리러 갈게" required>
+          </label>
+          <button type="submit" class="btn btn--primary">남기기</button>
+        </div>
+      </form>
+
+      <ul class="notes" id="notes"><!-- app.js --></ul>
+      <p class="empty" id="note-empty">아직 남긴 메모가 없어요.</p>
+    </section>
+
+  </main>
+
+  <footer class="foot">
+    <p>우리 가족만 쓰는 대시보드 · 아이들 이름만 담았어요 · 저장은 이 기기 브라우저(localStorage)에</p>
+    <p class="foot__updated" id="foot-updated"></p>
+  </footer>
+</div>
+
+<!-- ============ 동기화 설정 모달 ============ -->
+<div class="modal" id="sync-modal" hidden>
+  <div class="modal__backdrop" data-close="sync-modal"></div>
+  <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="sync-title">
+    <div class="modal__head">
+      <h2 id="sync-title">⚙️ 실시간 동기화 설정</h2>
+      <button type="button" class="icon-btn icon-btn--close" data-close="sync-modal" aria-label="닫기">✕</button>
+    </div>
+
+    <div class="modal__body">
+      <p class="modal__lead">
+        태블릿과 휴대폰이 같은 퀘스트·XP·위시리스트·메모를 함께 보게 하려면 Firebase Realtime Database 주소를 넣어주세요.
+        주소를 비워두면 이 기기에만 저장돼요.
+      </p>
+
+      <label class="field">
+        <span class="field__label">Realtime Database URL</span>
+        <input type="url" id="sync-url" inputmode="url" spellcheck="false"
+               placeholder="https://우리집-default-rtdb.firebaseio.com">
+      </label>
+
+      <p class="modal__hint">
+        Firebase 콘솔 → Realtime Database → 데이터 탭 위쪽의 주소를 그대로 붙여넣으면 됩니다.
+        주소 끝의 <code>/</code>는 붙여도 괜찮아요.
+      </p>
+
+      <div class="modal__status" id="sync-modal-status">아직 연결하지 않았어요.</div>
+
+      <details class="modal__details">
+        <summary>처음 한 번만 준비하면 되는 것</summary>
+        <ol>
+          <li>Firebase 콘솔에서 프로젝트를 만들고 <strong>Realtime Database</strong>를 켭니다.</li>
+          <li>규칙(Rules)을 아래처럼 두면 이 대시보드가 읽고 쓸 수 있어요. 개인정보가 없는 화면이라 값은 이름·퀘스트 정도만 담깁니다.
+            <pre>{
+  "rules": {
+    "family": { ".read": true, ".write": true }
+  }
+}</pre>
+          </li>
+          <li>위 주소를 여기에 붙여넣고 <strong>연결하고 저장</strong>을 누르면, 이후 모든 기기가 5초마다 서로 맞춰집니다.</li>
+        </ol>
+      </details>
+    </div>
+
+    <div class="modal__foot">
+      <button type="button" class="btn btn--text" id="sync-clear">연결 해제</button>
+      <div class="modal__foot-right">
+        <button type="button" class="btn btn--ghost" data-close="sync-modal">닫기</button>
+        <button type="button" class="btn btn--primary" id="sync-save">연결하고 저장</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
+<noscript>
+  <p class="noscript">퀘스트 체크와 저장 기능은 자바스크립트가 필요해요. 브라우저 설정에서 자바스크립트를 켜 주세요.</p>
+</noscript>
+
+<script src="app.js" defer></script>
+</body>
+</html>

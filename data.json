@@ -1,0 +1,199 @@
+{
+  "updated": "2026-11-16",
+  "weather": {
+    "place": "송도",
+    "summary": "대체로 흐림",
+    "emoji": "☁️",
+    "tempMin": 10,
+    "tempMax": 16,
+    "air": {
+      "label": "초미세먼지 나쁨",
+      "pollutant": "PM2.5",
+      "value": 49,
+      "level": "bad",
+      "advice": "😷 마스크 필수"
+    },
+    "outfit": "겉옷 꼭 챙기고, 마스크는 가방에 넣어두세요."
+  },
+  "kids": [
+    {
+      "id": "idun",
+      "name": "이든",
+      "pokemon": "파이리",
+      "pokemonEn": "Charmander",
+      "dexNo": 4,
+      "type": "fire",
+      "typeLabel": "불꽃",
+      "emoji": "🔥",
+      "role": "초등학교 1학년",
+      "artwork": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/4.png",
+      "cheer": "오늘도 불꽃처럼 활활!",
+      "quests": [
+        { "id": "idun-breakfast", "text": "아침밥 다 먹기", "xp": 20 },
+        { "id": "idun-brush", "text": "양치 깨끗이 하기", "xp": 15 },
+        { "id": "idun-spelling", "text": "스펠링비 단어 연습", "xp": 30 },
+        { "id": "idun-room", "text": "방 정리 5분", "xp": 20 }
+      ]
+    },
+    {
+      "id": "isol",
+      "name": "이솔",
+      "pokemon": "피카츄",
+      "pokemonEn": "Pikachu",
+      "dexNo": 25,
+      "type": "electric",
+      "typeLabel": "전기",
+      "emoji": "⚡",
+      "role": "유치원",
+      "artwork": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png",
+      "cheer": "반짝반짝 오늘의 하루!",
+      "quests": [
+        { "id": "isol-shoes", "text": "세탁한 실내화 가방에 넣기", "xp": 25 },
+        { "id": "isol-morning", "text": "기분 좋게 등원하기", "xp": 20 },
+        { "id": "isol-book", "text": "그림책 1권 보기", "xp": 20 },
+        { "id": "isol-toys", "text": "장난감 제자리에 두기", "xp": 15 }
+      ]
+    },
+    {
+      "id": "ion",
+      "name": "이온",
+      "pokemon": "꼬부기",
+      "pokemonEn": "Squirtle",
+      "dexNo": 7,
+      "type": "water",
+      "typeLabel": "물",
+      "emoji": "💧",
+      "role": "어린이집",
+      "artwork": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/7.png",
+      "cheer": "물처럼 씩씩하게!",
+      "quests": [
+        { "id": "ion-morning", "text": "기분 좋게 등원하기", "xp": 20 },
+        { "id": "ion-meal", "text": "밥 씩씩하게 먹기", "xp": 20 },
+        { "id": "ion-hands", "text": "손 깨끗이 씻기", "xp": 15 },
+        { "id": "ion-toys", "text": "장난감 제자리에 두기", "xp": 15 }
+      ]
+    }
+  ],
+  "today": [
+    {
+      "who": "이든",
+      "emoji": "📚",
+      "type": "fire",
+      "title": "스펠링비 예선주간 (11/16~20)",
+      "detail": "매일 단어 10분 연습하고 카드에 체크해요.",
+      "emphasis": false
+    },
+    {
+      "who": "이솔",
+      "emoji": "👟",
+      "type": "electric",
+      "title": "세탁한 실내화 꼭 보내기",
+      "detail": "내일(11/17) 거미놀이 오감놀이가 있어요.",
+      "emphasis": true
+    },
+    {
+      "who": "이온",
+      "emoji": "🧸",
+      "type": "water",
+      "title": "장난감 나눔 캠페인 (~11/20)",
+      "detail": "참여하려면 댓글을 남겨야 해요.",
+      "emphasis": false
+    }
+  ],
+  "events": [
+    {
+      "date": "2026-11-16",
+      "endDate": "2026-11-20",
+      "title": "스펠링비 예선주간",
+      "type": "school",
+      "emoji": "📚",
+      "who": "이든"
+    },
+    {
+      "date": "2026-11-16",
+      "title": "노을진캠핑장 오픈",
+      "time": "14:00",
+      "type": "family",
+      "emoji": "🏕️"
+    },
+    {
+      "date": "2026-11-16",
+      "title": "유치원 요강 공개",
+      "time": "18:00",
+      "type": "school",
+      "emoji": "📄",
+      "who": "이솔"
+    },
+    {
+      "date": "2026-11-17",
+      "title": "거미놀이 오감놀이",
+      "type": "school",
+      "emoji": "🕷️",
+      "who": "이솔",
+      "detail": "세탁한 실내화 꼭 보내기"
+    },
+    {
+      "date": "2026-11-17",
+      "endDate": "2026-11-23",
+      "title": "유치원 원서접수",
+      "type": "school",
+      "emoji": "📝"
+    },
+    {
+      "date": "2026-11-20",
+      "title": "장난감 나눔 캠페인 마감",
+      "type": "family",
+      "emoji": "🧸",
+      "who": "이온"
+    },
+    {
+      "date": "2026-12-08",
+      "title": "장태산 캠핑 무료취소 마감",
+      "type": "family",
+      "emoji": "⛺"
+    },
+    {
+      "date": "2026-12-11",
+      "endDate": "2026-12-12",
+      "title": "장태산 캠핑",
+      "type": "family",
+      "emoji": "🏕️"
+    }
+  ],
+  "dday": [
+    {
+      "id": "camp-open",
+      "title": "노을진캠핑장 오픈",
+      "date": "2026-11-16",
+      "time": "14:00",
+      "emoji": "🏕️",
+      "note": "오픈 시간 맞춰 예약 준비"
+    },
+    {
+      "id": "guide",
+      "title": "유치원 요강 공개",
+      "date": "2026-11-16",
+      "time": "18:00",
+      "emoji": "📄",
+      "note": "원서 준비물 미리 확인"
+    },
+    {
+      "id": "apply",
+      "title": "유치원 원서접수",
+      "date": "2026-11-17",
+      "endDate": "2026-11-23",
+      "emoji": "📝",
+      "note": "온라인 접수 · 마감 전에 제출"
+    },
+    {
+      "id": "jangtaesan",
+      "title": "장태산 캠핑",
+      "date": "2026-12-11",
+      "endDate": "2026-12-12",
+      "emoji": "⛺",
+      "note": "무료 취소 마감 12/08"
+    }
+  ],
+  "wishlistWho": ["이든", "이솔", "이온", "엄마", "아빠"],
+  "quickNotes": ["전화할게", "도와주세요", "간식 사다 줘", "칭찬해 줘"]
+}
