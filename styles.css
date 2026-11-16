@@ -1329,8 +1329,7 @@ body.wall-mode .quest__del { display: none; }
   50% { transform: translateY(-6px) rotate(1.2deg); }
 }
 
-.stage__sprite { margin-bottom: 10px; }
-.stage__ground {
+.stage__sprite { margin-bottom: 10px; }.stage__ground {
   position: absolute;
   left: 50%;
   bottom: 4px;
@@ -1355,6 +1354,17 @@ body.wall-mode .quest__del { display: none; }
   color: var(--ink);
 }
 .stage__no { font-size: 0.8rem; color: var(--ink-faint); }
+.stage__note {
+  margin-top: 12px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: #fff8ea;
+  border: 1px dashed #eeddb6;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  word-break: keep-all;
+}
 
 .progress { margin-top: 4px; }
 .progress__track {

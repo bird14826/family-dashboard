@@ -657,6 +657,13 @@
     }
     setText('#stage-no', kid.active.eggNo + '번째 알');
 
+    var noteEl = $('#stage-note');
+    if (noteEl) {
+      if (stage === 0) noteEl.textContent = '새 포켓몬 알을 받았어요! 무슨 포켓몬일까요?';
+      else if (isFinal) noteEl.textContent = '다 키웠어요! 보관함에 넣으면 마을 친구가 돼요.';
+      else noteEl.textContent = '쑥쑥 자라는 중이에요. 스티커를 모아 다음 단계로!'; 
+    }
+
     /* 진행도 */
     var need = isFinal ? 0 : stageCost(fam, stage);
     var pct = isFinal ? 100 : (need ? Math.min(100, Math.round((kid.stickers / need) * 100)) : 0);
@@ -697,9 +704,9 @@
 
   function figureBaseSize() {
     var w = window.innerWidth;
-    if (w < 600) return 58;
-    if (w < 900) return 72;
-    return 96;
+    if (w < 600) return 60;
+    if (w < 900) return 76;
+    return 106;
   }
 
   function renderVillage() {
@@ -1167,7 +1174,11 @@
     renderKids();
 
     if (kid.active.stage >= maxStage) {
-      toast('🎉 ' + iGa(name) + ' 최종 진화했어요! [보관함에 넣고 새 알 받기]를 눌러요', 'level');
+      if (maxStage === 1) {
+        toast('🎉 전설의 포켓몬 ' + iGa(name) + ' 알에서 태어났어요! 보관함에 넣어 주세요', 'level');
+      } else {
+        toast('🎉 ' + iGa(name) + ' 최종 진화했어요! [보관함에 넣고 새 알 받기]를 눌러요', 'level');
+      }
     } else if (stage === 0) {
       toast('🥚 알에서 ' + iGa(name) + ' 태어났어요!', 'level');
     } else {
