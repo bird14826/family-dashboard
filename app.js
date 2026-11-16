@@ -1,7 +1,8 @@
 /* =========================================================
    우리집 가족 대시보드 — app.js
-   - 퀘스트 / XP / 레벨
-   - 오늘 일정 & 준비물, 가족 캘린더, D-Day
+   - 상단 탭(포켓몬 / 대시보드 / 아이 / 퀘스트 / 일정 / 위시·우체통)
+   - 아이별 포켓몬 알 부화·진화·개인 보관함(포켓몬 마을), 스티커 적립
+   - 퀘스트 / XP / 레벨, 오늘 일정 & 준비물, 가족 캘린더, D-Day
    - 위시리스트, 가족 우체통
    - localStorage 즉시 저장 + Firebase RTDB 실시간 동기화(선택)
    ========================================================= */
@@ -13,6 +14,8 @@
   var LEVEL_XP = 100;
   var POLL_MS = 5000;
   var PUSH_DEBOUNCE = 600;
+  var LOG_LIMIT = 60;
+  var VIEWS = ['pokemon', 'dashboard', 'quest', 'schedule', 'family'];
 
   var STATE_ICON = {
     local: '💾 이 기기에 저장 중',
@@ -21,12 +24,26 @@
     error: '⚠️ 동기화 오류'
   };
 
+  var TYPE_LABEL = {
+    fire: '불꽃', water: '물', electric: '전기', grass: '풀',
+    normal: '노말', fairy: '페어리', fighting: '격투', psychic: '에스퍼', dark: '악'
+  };
+
   var WEEKDAYS = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
   var WEEKDAYS_SHORT = ['일', '월', '화', '수', '목', '금', '토'];
+
+  /* 마을에 포켓몬을 놓는 자리 (겹치지 않게 3줄로 배치) */
+  var SLOTS = [
+    { x: 8, y: 30, k: 0.84 }, { x: 27, y: 25, k: 0.78 }, { x: 47, y: 23, k: 0.8 }, { x: 67, y: 26, k: 0.78 }, { x: 86, y: 31, k: 0.84 },
+    { x: 16, y: 51, k: 0.96 }, { x: 37, y: 48, k: 0.92 }, { x: 58, y: 49, k: 0.96 }, { x: 79, y: 47, k: 0.92 },
+    { x: 9, y: 72, k: 1.08 }, { x: 28, y: 76, k: 1.02 }, { x: 48, y: 71, k: 1.1 }, { x: 69, y: 76, k: 1.02 }, { x: 88, y: 72, k: 1.06 }
+  ];
 
   var data = null;
   var state = null;
   var sync = { url: '', enabled: false };
+  var view = 'pokemon';
+  var currentKid = null;
   var calMonth = null;          // { y, m } (m: 0-11)
   var selectedDate = null;      // 'YYYY-MM-DD'
   var pollTimer = null;
@@ -34,6 +51,20 @@
   var lastPayload = '';
   var clockTimer = null;
   var eventIndex = {};
+
+  var CAL_TARGETS = [
+    { grid: '#cal-grid', month: '#cal-month', detail: '#day-detail', prev: '#cal-prev', next: '#cal-next' },
+    { grid: '#cal-grid-2', month: '#cal-month-2', detail: '#day-detail-2', prev: '#cal-prev-2', next: '#cal-next-2' }
+  ];
+  var TODAY_LISTS = ['#today-list', '#today-list-schedule'];
+  var DDAY_LISTS = ['#dday-list', '#dday-list-schedule'];
+  var NOTE_LISTS = ['#notes', '#notes-2'];
+  var NOTE_FORMS = [
+    { form: '#note-form', from: '#note-from', text: '#note-text' },
+    { form: '#note-form-2', from: '#note-from-2', text: '#note-text-2' }
+  ];
+  var NOTE_EMPTY = ['#note-empty', '#note-empty-2'];
+  var QUICK_BOXES = ['#quick-notes', '#quick-notes-2'];
 
   /* ---------------- 작은 도우미 ---------------- */
   function $(sel, root) { return (root || document).querySelector(sel); }
@@ -45,6 +76,11 @@
     return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
+  }
+
+  function setText(sel, text) {
+    var el = $(sel);
+    if (el) el.textContent = text;
   }
 
   function dateKey(d) {
@@ -79,6 +115,16 @@
     return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + hm;
   }
 
+  function hasJong(word) {
+    var s = String(word || '');
+    if (!s) return false;
+    var c = s.charCodeAt(s.length - 1);
+    if (c < 0xAC00 || c > 0xD7A3) return false;
+    return ((c - 0xAC00) % 28) !== 0;
+  }
+  function ro(word) { return word + (hasJong(word) ? '으로' : '로'); }
+  function iGa(word) { return word + (hasJong(word) ? '이' : '가'); }
+
   function toast(message, kind) {
     var stack = $('#toasts');
     if (!stack) return;
@@ -89,7 +135,11 @@
     window.setTimeout(function () {
       el.classList.add('is-out');
       window.setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 320);
-    }, 2400);
+    }, 2600);
+  }
+
+  function typeLabel(type) {
+    return TYPE_LABEL[type] || '노말';
   }
 
   /* ---------------- 저장 ---------------- */
@@ -126,11 +176,88 @@
     try { window.localStorage.setItem(SYNC_KEY, JSON.stringify(sync)); } catch (err) { /* 무시 */ }
   }
 
+  /* ---------------- 포켓몬 데이터 도우미 ---------------- */
+  function pokeData() { return (data && data.pokemon) || null; }
+
+  function familyOf(familyId) {
+    var p = pokeData();
+    if (!p || !Array.isArray(p.families)) return null;
+    for (var i = 0; i < p.families.length; i += 1) {
+      if (p.families[i].id === familyId) return p.families[i];
+    }
+    return null;
+  }
+
+  function dexInfo(dex) {
+    var p = pokeData();
+    if (!p || !p.dex) return null;
+    return p.dex[String(dex)] || null;
+  }
+
+  function stageCost(fam, stage) {
+    var p = pokeData();
+    var c = (p && p.costs) || {};
+    if (stage <= 0) return Number(fam && fam.hatchCost) || Number(c.hatch) || 3;
+    if (stage === 1) return Number(c.evolve1) || 4;
+    return Number(c.evolve2) || 6;
+  }
+
+  function spriteStyle(dex, size) {
+    var p = pokeData();
+    if (!p || !p.dexIndex) return '';
+    var idx = p.dexIndex[String(dex)];
+    if (idx === undefined || idx === null) return '';
+    var cols = (p.sprite && p.sprite.cols) || 8;
+    var rows = (p.sprite && p.sprite.rows) || 4;
+    var col = idx % cols;
+    var row = Math.floor(idx / cols);
+    return '--s:' + size + 'px;--c:' + col + ';--r:' + row + ';--cols:' + cols + ';--rows:' + rows;
+  }
+
+  function spriteHtml(dex, size, extraClass) {
+    var info = dexInfo(dex);
+    return '<span class="sprite ' + (extraClass || '') + '" style="' + spriteStyle(dex, size) + '"' +
+      ' role="img" aria-label="' + esc(info ? info.name : '포켓몬') + '"></span>';
+  }
+
+  function pickEggFamily(kidId) {
+    var p = pokeData();
+    if (!p || !Array.isArray(p.families) || !p.families.length) return '';
+    var kid = state.kids[kidId];
+    var box = (kid && Array.isArray(kid.box)) ? kid.box : [];
+    if (!box.length) {
+      for (var i = 0; i < p.families.length; i += 1) {
+        if (p.families[i].starter === kidId) return p.families[i].id;
+      }
+    }
+    var lastFam = box.length ? box[box.length - 1].family : '';
+    var pool = p.families.filter(function (f) { return f.id !== lastFam; });
+    if (!pool.length) pool = p.families;
+    return pool[Math.floor(Math.random() * pool.length)].id;
+  }
+
+  function starterFamily(kidId) {
+    var p = pokeData();
+    if (!p || !Array.isArray(p.families)) return '';
+    for (var i = 0; i < p.families.length; i += 1) {
+      if (p.families[i].starter === kidId) return p.families[i].id;
+    }
+    return p.families[0] ? p.families[0].id : '';
+  }
+
+  function kidDef(kidId) {
+    var kids = (data && data.kids) || [];
+    for (var i = 0; i < kids.length; i += 1) {
+      if (kids[i].id === kidId) return kids[i];
+    }
+    return null;
+  }
+
   /* ---------------- 상태 정규화 ---------------- */
   function normalizeState(raw) {
     var s = (raw && typeof raw === 'object') ? raw : {};
     var out = {
-      version: 1,
+      version: 2,
       _ts: Number(s._ts) || 0,
       kids: {},
       wishlist: Array.isArray(s.wishlist) ? s.wishlist : [],
@@ -170,10 +297,59 @@
         });
       });
 
+      /* ---- 포켓몬: 알/진화 단계 · 스티커 · 보관함 ---- */
+      var activeRaw = (cur.active && typeof cur.active === 'object') ? cur.active : {};
+      var famId = activeRaw.family ? String(activeRaw.family) : '';
+      var fam = familyOf(famId);
+      if (!fam) { famId = starterFamily(def.id); fam = familyOf(famId); }
+      var maxStage = fam ? fam.stages.length : 0;
+      var stage = Number(activeRaw.stage) || 0;
+      if (stage < 0) stage = 0;
+      if (stage > maxStage) stage = maxStage;
+
+      var box = Array.isArray(cur.box) ? cur.box.filter(function (b) {
+        return b && b.id && b.dex && dexInfo(b.dex);
+      }).map(function (b) {
+        return {
+          id: String(b.id),
+          dex: Number(b.dex),
+          family: b.family ? String(b.family) : '',
+          at: b.at ? String(b.at) : new Date().toISOString()
+        };
+      }) : [];
+
+      var log = Array.isArray(cur.stickerLog) ? cur.stickerLog.filter(function (e) {
+        return e && e.at;
+      }).map(function (e) {
+        return {
+          id: e.id ? String(e.id) : uid(),
+          at: String(e.at),
+          amount: Math.max(1, Math.floor(Number(e.amount) || 1)),
+          reason: e.reason ? String(e.reason) : '스티커',
+          src: e.src ? String(e.src) : 'parent',
+          questId: e.questId ? String(e.questId) : ''
+        };
+      }) : [];
+      if (log.length > LOG_LIMIT) log = log.slice(-LOG_LIMIT);
+
+      var total = Math.max(0, Math.floor(Number(cur.stickerTotal) || 0));
+      var logSum = log.reduce(function (sum, e) { return sum + e.amount; }, 0);
+      if (total < logSum) total = logSum;
+
       out.kids[def.id] = {
         xp: Math.max(0, Number(cur.xp) || 0),
         resetDate: cur.resetDate ? String(cur.resetDate) : dateKey(),
-        quests: quests
+        quests: quests,
+        stickers: Math.max(0, Math.floor(Number(cur.stickers) || 0)),
+        stickerTotal: total,
+        stickerLog: log,
+        active: {
+          family: famId,
+          stage: stage,
+          eggNo: Math.max(1, Math.floor(Number(activeRaw.eggNo) || 1)),
+          since: activeRaw.since ? String(activeRaw.since) : new Date().toISOString()
+        },
+        box: box
       };
     });
 
@@ -201,8 +377,6 @@
     return out;
   }
 
-  function defaultState() { return normalizeState({ _ts: Date.now() }); }
-
   /* ---------------- 하루 초기화 ---------------- */
   function ensureDailyReset() {
     var today = dateKey();
@@ -222,52 +396,100 @@
   /* ---------------- XP / 레벨 ---------------- */
   function levelOf(xp) { return Math.floor(xp / LEVEL_XP) + 1; }
 
-  function questTotalXp(kid) {
-    return kid.quests.reduce(function (sum, q) { return sum + (q.done ? q.xp : 0); }, 0);
+  /* =========================================================
+     상단 탭
+     ========================================================= */
+  function renderTabs() {
+    var wrap = $('#tabs-kids');
+    if (!wrap || !data || !Array.isArray(data.kids)) return;
+    wrap.innerHTML = data.kids.map(function (def) {
+      return '<button type="button" class="tab tab--kid" data-kid="' + esc(def.id) + '" aria-pressed="false">' +
+        '<span aria-hidden="true">' + esc(def.emoji || '⭐') + '</span> ' + esc(def.name) + '</button>';
+    }).join('');
+  }
+
+  function syncTabState() {
+    $$('.tab').forEach(function (btn) {
+      var v = btn.getAttribute('data-view');
+      var k = btn.getAttribute('data-kid');
+      var on = false;
+      if (k) on = (view === 'pokemon' && k === currentKid);
+      else if (v) on = (view === v);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+
+  function writeHash() {
+    var h = (view === 'pokemon' && currentKid) ? '#pokemon/' + currentKid : '#' + view;
+    if (window.location.hash === h) return;
+    try { window.history.replaceState(null, '', h); } catch (err) { /* 무시 */ }
+  }
+
+  function setView(next, kidId, opts) {
+    if (VIEWS.indexOf(next) < 0) next = 'pokemon';
+    if (kidId && state && state.kids[kidId]) currentKid = kidId;
+    view = next;
+
+    $$('.view').forEach(function (sec) {
+      sec.hidden = sec.getAttribute('data-view') !== view;
+    });
+    syncTabState();
+
+    if (view === 'pokemon') renderPokemon();
+    if (view === 'quest') renderKids();
+    if (view === 'dashboard' || view === 'schedule') {
+      renderToday();
+      renderDday();
+      renderCalendar();
+    }
+    if (view === 'dashboard' || view === 'family') {
+      renderWishlist();
+      renderNotes();
+    }
+
+    if (!opts || !opts.silent) {
+      try { window.scrollTo(0, 0); } catch (err) { /* 무시 */ }
+    }
+    writeHash();
+  }
+
+  function readHash() {
+    var h = String(window.location.hash || '').replace(/^#/, '');
+    if (!h) return false;
+    var parts = h.split('/');
+    if (VIEWS.indexOf(parts[0]) < 0) return false;
+    setView(parts[0], parts[1], { silent: true });
+    return true;
   }
 
   /* =========================================================
-     렌더링
+     렌더링 — 공통
      ========================================================= */
   function renderClock() {
     var now = new Date();
     var hour = now.getHours();
     var meridiem = hour < 12 ? '오전' : '오후';
     var hour12 = hour % 12 || 12;
+    var clockText = '지금은 ' + meridiem + ' ' + hour12 + ':' + pad(now.getMinutes());
 
-    var clock = $('#clock');
-    if (clock) clock.textContent = '지금은 ' + meridiem + ' ' + hour12 + ':' + pad(now.getMinutes());
+    setText('#clock', clockText);
+    setText('#today-date', now.getFullYear() + '년 ' + (now.getMonth() + 1) + '월 ' + now.getDate() + '일 ' + WEEKDAYS[now.getDay()]);
 
-    var dateEl = $('#today-date');
-    if (dateEl) {
-      dateEl.textContent = now.getFullYear() + '년 ' + (now.getMonth() + 1) + '월 ' + now.getDate() + '일 ' +
-        WEEKDAYS[now.getDay()];
-    }
-
-    var sub = $('#today-date-sub');
-    if (sub) {
-      sub.textContent = (now.getMonth() + 1) + '월 ' + now.getDate() + '일 ' + WEEKDAYS[now.getDay()] + ' 기준';
-    }
+    var subText = (now.getMonth() + 1) + '월 ' + now.getDate() + '일 ' + WEEKDAYS[now.getDay()] + ' 기준';
+    ['#today-date-sub', '#today-date-sub2', '#today-date-sub3'].forEach(function (sel) {
+      setText(sel, subText);
+    });
   }
 
   function renderWeather() {
     if (!data || !data.weather) return;
     var w = data.weather;
 
-    var emoji = $('#weather-emoji');
-    if (emoji) emoji.textContent = w.emoji || '🌤️';
-
-    var place = $('#weather-place');
-    if (place) place.textContent = w.place || '';
-
-    var temp = $('#weather-temp');
-    if (temp) temp.textContent = w.tempMin + '~' + w.tempMax + '°C';
-
-    var summary = $('#weather-summary');
-    if (summary) summary.textContent = w.summary || '';
-
-    var outfit = $('#weather-outfit');
-    if (outfit) outfit.textContent = w.outfit || '';
+    setText('#weather-emoji', w.emoji || '🌤️');
+    setText('#weather-place', w.place || '');
+    setText('#weather-temp', w.tempMin + '~' + w.tempMax + '°C');
+    setText('#weather-summary', w.summary || '');
+    setText('#weather-outfit', w.outfit || '');
 
     var badge = $('#air-badge');
     if (badge && w.air) {
@@ -277,6 +499,9 @@
     }
   }
 
+  /* =========================================================
+     렌더링 — 퀘스트 카드
+     ========================================================= */
   function kidCardHtml(def) {
     var kid = state.kids[def.id];
     if (!kid) return '';
@@ -294,7 +519,7 @@
         '<label class="quest' + (q.done ? ' is-done' : '') + '" data-quest="' + esc(q.id) + '">' +
           '<input type="checkbox" id="' + esc(inputId) + '" data-action="toggle"' + (q.done ? ' checked' : '') + '>' +
           '<span class="quest__text">' + esc(q.text) + '</span>' +
-          '<span class="quest__xp">+' + q.xp + ' XP</span>' +
+          '<span class="quest__xp">+' + q.xp + ' XP · ⭐1</span>' +
           (q.custom ? '<button type="button" class="quest__del" data-action="del-quest" aria-label="' + esc(q.text) + ' 퀘스트 삭제">✕</button>' : '') +
         '</label>';
     }).join('');
@@ -322,6 +547,8 @@
           '<div class="xp__bar" data-width="' + progress + '" style="width:0%"></div>' +
         '</div>' +
         '<p class="xp__text">' + progress + ' / ' + LEVEL_XP + ' XP · 다음 레벨까지 ' + remaining + ' XP (누적 ' + xp + ' XP)</p>' +
+        '<p class="kid-card__sticker-line"><span aria-hidden="true">⭐</span> 스티커 ' + kid.stickers + '장 · ' +
+          '<span aria-hidden="true">🏡</span> 마을 ' + kid.box.length + '마리</p>' +
         '<div class="quests">' + (quests || '<p class="empty">퀘스트를 추가해 보세요.</p>') + '</div>' +
         '<form class="quest-add" data-kid="' + esc(def.id) + '" autocomplete="off">' +
           '<input type="text" name="text" maxlength="40" placeholder="새 퀘스트 (예: 책 10쪽 읽기)" aria-label="새 퀘스트">' +
@@ -330,14 +557,16 @@
         '</form>' +
         '<div class="kid-card__foot">' +
           (allDone ? '<p class="kid-card__allclear">🎉 오늘 올클리어!</p>' : '<span></span>') +
-          '<button type="button" class="btn btn--text" data-action="reset" data-kid="' + esc(def.id) + '">하루 초기화</button>' +
+          '<div class="kid-card__foot-right">' +
+            '<button type="button" class="btn btn--ghost" data-action="go-village" data-kid="' + esc(def.id) + '">포켓몬 마을</button>' +
+            '<button type="button" class="btn btn--text" data-action="reset" data-kid="' + esc(def.id) + '">하루 초기화</button>' +
+          '</div>' +
         '</div>' +
       '</article>';
   }
 
   function animateBars(root) {
-    var bars = $$('.xp__bar', root || document);
-    bars.forEach(function (bar) {
+    $$('.xp__bar', root || document).forEach(function (bar) {
       var width = bar.getAttribute('data-width') || '0';
       if (bar.__drawn === width) return;
       bar.__drawn = width;
@@ -367,7 +596,7 @@
   }
 
   function refreshKid(kidId) {
-    var def = (data && data.kids || []).filter(function (k) { return k.id === kidId; })[0];
+    var def = kidDef(kidId);
     var current = document.getElementById('card-' + kidId);
     if (!def || !current) return;
     current.outerHTML = kidCardHtml(def);
@@ -376,12 +605,186 @@
     fixImages(next);
   }
 
-  function renderToday() {
-    var list = $('#today-list');
-    if (!list) return;
-    if (!data || !Array.isArray(data.today)) { list.innerHTML = ''; return; }
+  /* =========================================================
+     렌더링 — 포켓몬 (지금 키우는 포켓몬 / 마을 / 최근 스티커)
+     ========================================================= */
+  function renderNursery() {
+    if (!pokeData() || !currentKid) return;
+    var kid = state.kids[currentKid];
+    var def = kidDef(currentKid);
+    if (!kid || !def) return;
 
-    list.innerHTML = data.today.map(function (item) {
+    setText('#nursery-kid', def.name + (def.role ? ' · ' + def.role : ''));
+    var badge = $('#sticker-badge');
+    if (badge) badge.innerHTML = '<span aria-hidden="true">⭐</span> 스티커 ' + kid.stickers + '장';
+
+    var fam = familyOf(kid.active.family);
+    var stage = fam ? Math.min(kid.active.stage, fam.stages.length) : 0;
+    var maxStage = fam ? fam.stages.length : 0;
+    var isFinal = !!fam && stage >= maxStage;
+
+    var eggEl = $('#stage-egg');
+    var spriteEl = $('#stage-sprite');
+    if (eggEl && spriteEl) {
+      if (stage === 0) {
+        eggEl.hidden = false;
+        spriteEl.hidden = true;
+        spriteEl.removeAttribute('style');
+      } else {
+        var dex = fam.stages[stage - 1];
+        var info = dexInfo(dex);
+        eggEl.hidden = true;
+        spriteEl.hidden = false;
+        spriteEl.setAttribute('style', spriteStyle(dex, 196));
+        spriteEl.setAttribute('role', 'img');
+        spriteEl.setAttribute('aria-label', info ? info.name : '포켓몬');
+      }
+    }
+
+    var stepEl = $('#stage-step');
+    if (stepEl) {
+      if (stage === 0) stepEl.textContent = '알';
+      else if (fam && fam.legendary && stage >= maxStage) stepEl.textContent = '전설의 포켓몬';
+      else if (stage >= maxStage) stepEl.textContent = '최종 진화';
+      else stepEl.textContent = stage + '단계';
+    }
+
+    if (stage === 0) {
+      setText('#stage-name', '무슨 포켓몬일까?');
+    } else {
+      var dInfo = dexInfo(fam.stages[stage - 1]);
+      setText('#stage-name', dInfo ? dInfo.name : '포켓몬');
+    }
+    setText('#stage-no', kid.active.eggNo + '번째 알');
+
+    /* 진행도 */
+    var need = isFinal ? 0 : stageCost(fam, stage);
+    var pct = isFinal ? 100 : (need ? Math.min(100, Math.round((kid.stickers / need) * 100)) : 0);
+    var fill = $('#progress-fill');
+    if (fill) fill.style.width = pct + '%';
+    var track = $('#progress-track');
+    if (track) track.setAttribute('aria-label', isFinal ? '다 키운 포켓몬' : '스티커 ' + kid.stickers + ' / ' + need + '장');
+
+    var verb = stage === 0 ? '부화' : '진화';
+    var textEl = $('#progress-text');
+    if (textEl) {
+      if (isFinal) {
+        textEl.textContent = '다 키웠어요! 보관함에 넣고 새 알을 받아요.';
+      } else if (kid.stickers >= need) {
+        textEl.textContent = '다음: 스티커 ' + need + '장이면 ' + verb + ' · 지금 바로 ' + verb + '할 수 있어요!';
+      } else {
+        textEl.textContent = '다음: 스티커 ' + need + '장이면 ' + verb + ' · ' + (need - kid.stickers) + '장 더 모아요 (지금 ' + kid.stickers + '장)';
+      }
+    }
+
+    /* 버튼 */
+    var growBtn = $('#btn-grow');
+    var boxBtn = $('#btn-box');
+    if (growBtn && boxBtn) {
+      if (isFinal) {
+        growBtn.hidden = true;
+        boxBtn.hidden = false;
+      } else {
+        growBtn.hidden = false;
+        boxBtn.hidden = true;
+        var locked = kid.stickers < need;
+        growBtn.classList.toggle('is-locked', locked);
+        growBtn.setAttribute('aria-disabled', locked ? 'true' : 'false');
+        growBtn.textContent = (stage === 0 ? '🥚 알 부화하기' : '✨ 진화하기') + ' (스티커 ' + need + '장)';
+      }
+    }
+  }
+
+  function renderVillage() {
+    if (!pokeData() || !currentKid) return;
+    var kid = state.kids[currentKid];
+    var def = kidDef(currentKid);
+    if (!kid || !def) return;
+
+    setText('#village-kid', def.name);
+    setText('#village-count', '다 키운 포켓몬 ' + kid.box.length + '마리');
+
+    var wrap = $('#meadow-figures');
+    var empty = $('#meadow-empty');
+    var more = $('#meadow-more');
+    if (!wrap) return;
+
+    var list = kid.box.slice().sort(function (a, b) {
+      return new Date(a.at) - new Date(b.at);
+    });
+
+    wrap.innerHTML = list.slice(0, SLOTS.length).map(function (item, i) {
+      var slot = SLOTS[i];
+      var info = dexInfo(item.dex);
+      var size = Math.round(74 * slot.k);
+      return '' +
+        '<button type="button" class="figure" data-box-id="' + esc(item.id) + '"' +
+          ' style="--x:' + slot.x + '%;--y:' + slot.y + '%;--k:' + slot.k + '"' +
+          ' aria-label="' + esc(info ? info.name : '포켓몬') + ' 도감 보기">' +
+          '<span class="sprite figure__sprite" style="' + spriteStyle(item.dex, size) + '" aria-hidden="true"></span>' +
+          '<span class="figure__tag">' + esc(info ? info.name : '???') + '</span>' +
+        '</button>';
+    }).join('');
+
+    if (empty) empty.hidden = list.length > 0;
+    if (more) {
+      var extra = Math.max(0, list.length - SLOTS.length);
+      more.hidden = extra === 0;
+      if (extra) more.textContent = '+' + extra + '마리 더 있어요';
+    }
+  }
+
+  function renderStickerLog() {
+    if (!currentKid || !state.kids[currentKid]) return;
+    var kid = state.kids[currentKid];
+    var log = kid.stickerLog.slice().sort(function (a, b) {
+      return new Date(b.at) - new Date(a.at);
+    });
+
+    var weekAgo = new Date().getTime() - 7 * 86400000;
+    var week = log.reduce(function (sum, e) {
+      return new Date(e.at).getTime() >= weekAgo ? sum + e.amount : sum;
+    }, 0);
+
+    setText('#sticker-count', '모은 스티커 ' + (kid.stickerTotal || 0) + '장 · 이번 주 ' + week + '장');
+
+    var list = $('#sticker-log');
+    var empty = $('#sticker-empty');
+    if (!list) return;
+
+    var todayKey = dateKey();
+    list.innerHTML = log.slice(0, 14).map(function (e) {
+      var d = new Date(e.at);
+      var label = dateKey(d) === todayKey ? '오늘' : (d.getMonth() + 1) + '/' + d.getDate() + ' ' + WEEKDAYS_SHORT[d.getDay()];
+      var src = e.src === 'quest' ? '퀘스트' : (e.src === 'parent' ? '부모님' : '보너스');
+      return '' +
+        '<li class="sticker-row" data-src="' + esc(e.src) + '">' +
+          '<span class="sticker-row__date">' + esc(label) + '</span>' +
+          '<span class="sticker-row__plus">+' + e.amount + '장</span>' +
+          '<span class="sticker-row__reason">' + esc(e.reason) + '</span>' +
+          '<span class="sticker-row__src">' + src + '</span>' +
+        '</li>';
+    }).join('');
+
+    if (empty) empty.hidden = log.length > 0;
+  }
+
+  function renderPokemon() {
+    renderNursery();
+    renderVillage();
+    renderStickerLog();
+  }
+
+  /* =========================================================
+     렌더링 — 오늘 일정 / D-Day / 캘린더
+     ========================================================= */
+  function renderToday() {
+    if (!data || !Array.isArray(data.today)) {
+      TODAY_LISTS.forEach(function (sel) { var el = $(sel); if (el) el.innerHTML = ''; });
+      return;
+    }
+
+    var html = data.today.map(function (item) {
       return '' +
         '<li class="today-item' + (item.emphasis ? ' is-emphasis' : '') + '" data-type="' + esc(item.type || '') + '">' +
           '<span class="today-item__emoji" aria-hidden="true">' + esc(item.emoji || '📌') + '</span>' +
@@ -392,9 +795,10 @@
           '</div>' +
         '</li>';
     }).join('');
+
+    TODAY_LISTS.forEach(function (sel) { var el = $(sel); if (el) el.innerHTML = html; });
   }
 
-  /* ---------- 이벤트 인덱스 & D-Day ---------- */
   function buildEventIndex() {
     eventIndex = {};
     if (!data || !Array.isArray(data.events)) return;
@@ -424,9 +828,10 @@
   }
 
   function renderDday() {
-    var list = $('#dday-list');
-    if (!list) return;
-    if (!data || !Array.isArray(data.dday)) { list.innerHTML = ''; return; }
+    if (!data || !Array.isArray(data.dday)) {
+      DDAY_LISTS.forEach(function (sel) { var el = $(sel); if (el) el.innerHTML = ''; });
+      return;
+    }
 
     var today = new Date();
     var rows = data.dday.map(function (item) {
@@ -466,7 +871,7 @@
       return a.toEnd - b.toEnd;
     });
 
-    list.innerHTML = rows.map(function (row) {
+    var html = rows.map(function (row) {
       return '' +
         '<li class="dday' + row.cls + '">' +
           '<span class="dday__emoji" aria-hidden="true">' + esc(row.item.emoji || '📌') + '</span>' +
@@ -477,18 +882,13 @@
           '<span class="dday__badge">' + esc(row.badge) + '</span>' +
         '</li>';
     }).join('');
+
+    DDAY_LISTS.forEach(function (sel) { var el = $(sel); if (el) el.innerHTML = html; });
   }
 
-  /* ---------- 캘린더 ---------- */
   function renderCalendar() {
-    var grid = $('#cal-grid');
-    var label = $('#cal-month');
-    if (!grid || !label) return;
-
     var y = calMonth.y;
     var m = calMonth.m;
-    label.textContent = y + '년 ' + (m + 1) + '월';
-
     var first = new Date(y, m, 1);
     var startPad = first.getDay();
     var daysInMonth = new Date(y, m + 1, 0).getDate();
@@ -524,14 +924,15 @@
         '</button>';
     }
 
-    grid.innerHTML = html;
+    CAL_TARGETS.forEach(function (target) {
+      var grid = $(target.grid);
+      if (grid) grid.innerHTML = html;
+      setText(target.month, y + '년 ' + (m + 1) + '월');
+    });
     renderDayDetail();
   }
 
   function renderDayDetail() {
-    var box = $('#day-detail');
-    if (!box) return;
-
     var key = selectedDate || dateKey();
     var d = parseKey(key);
     var events = eventIndex[key] || [];
@@ -540,25 +941,31 @@
     var head = '<p class="day-detail__date">' + (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' +
       WEEKDAYS[d.getDay()] + (key === todayK ? ' · 오늘' : '') + '</p>';
 
+    var body;
     if (!events.length) {
-      box.innerHTML = head + '<p class="day-detail__empty">이 날은 등록된 일정이 없어요. 편안한 하루!</p>';
-      return;
+      body = head + '<p class="day-detail__empty">이 날은 등록된 일정이 없어요. 편안한 하루!</p>';
+    } else {
+      body = head + events.map(function (ev) {
+        return '' +
+          '<p class="day-detail__item">' +
+            '<span aria-hidden="true">' + esc(ev.emoji || '📌') + '</span>' +
+            (ev.who ? '<span class="day-detail__who">' + esc(ev.who) + '</span>' : '') +
+            '<strong>' + esc(ev.title) + '</strong>' +
+            (ev.time ? '<span>' + esc(ev.time) + '</span>' : '') +
+            (ev.detail ? '<span class="dday__note">' + esc(ev.detail) + '</span>' : '') +
+          '</p>';
+      }).join('');
     }
 
-    box.innerHTML = head + events.map(function (ev) {
-      var prefix = ev.type === 'school' ? '🏫' : '🏠';
-      return '' +
-        '<p class="day-detail__item">' +
-          '<span aria-hidden="true">' + esc(ev.emoji || prefix) + '</span>' +
-          (ev.who ? '<span class="day-detail__who">' + esc(ev.who) + '</span>' : '') +
-          '<strong>' + esc(ev.title) + '</strong>' +
-          (ev.time ? '<span>' + esc(ev.time) + '</span>' : '') +
-          (ev.detail ? '<span class="dday__note">' + esc(ev.detail) + '</span>' : '') +
-        '</p>';
-    }).join('');
+    CAL_TARGETS.forEach(function (target) {
+      var box = $(target.detail);
+      if (box) box.innerHTML = body;
+    });
   }
 
-  /* ---------- 위시리스트 ---------- */
+  /* =========================================================
+     렌더링 — 위시리스트 / 우체통
+     ========================================================= */
   function renderWishlist() {
     var list = $('#wishlist');
     var empty = $('#wish-empty');
@@ -611,37 +1018,24 @@
         totalEl.hidden = true;
       }
     }
-
     if (clearBtn) clearBtn.hidden = !state.wishlist.some(function (w) { return w.done; });
   }
 
-  /* ---------- 우체통 ---------- */
   function renderQuickNotes() {
-    var box = $('#quick-notes');
-    if (!box || !data) return;
+    if (!data) return;
     var items = Array.isArray(data.quickNotes) ? data.quickNotes : ['전화할게', '도와주세요'];
-    box.innerHTML = items.map(function (text) {
+    var html = items.map(function (text) {
       return '<button type="button" class="chip" data-quick="' + esc(text) + '">' + esc(text) + '</button>';
     }).join('');
+    QUICK_BOXES.forEach(function (sel) { var el = $(sel); if (el) el.innerHTML = html; });
   }
 
   function renderNotes() {
-    var list = $('#notes');
-    var empty = $('#note-empty');
-    if (!list) return;
-
-    if (!state.notes.length) {
-      list.innerHTML = '';
-      if (empty) empty.hidden = false;
-      return;
-    }
-    if (empty) empty.hidden = true;
-
     var sorted = state.notes.slice().sort(function (a, b) {
       return new Date(b.createdAt) - new Date(a.createdAt);
     });
 
-    list.innerHTML = sorted.map(function (n) {
+    var html = sorted.map(function (n) {
       return '' +
         '<li class="note" data-id="' + esc(n.id) + '">' +
           '<span class="note__avatar" aria-hidden="true">📝</span>' +
@@ -655,23 +1049,27 @@
           '<button type="button" class="note__del" data-action="note-del" aria-label="메모 삭제">✕</button>' +
         '</li>';
     }).join('');
+
+    NOTE_LISTS.forEach(function (sel) {
+      var list = $(sel);
+      if (list) list.innerHTML = html;
+    });
+    NOTE_EMPTY.forEach(function (sel) {
+      var empty = $(sel);
+      if (empty) empty.hidden = state.notes.length > 0;
+    });
   }
 
   function renderSelects() {
-    var who = $('#wish-who');
-    var from = $('#note-from');
     var options = (data && Array.isArray(data.wishlistWho)) ? data.wishlistWho : ['가족'];
+    var html = options.map(function (name) {
+      return '<option value="' + esc(name) + '">' + esc(name) + '</option>';
+    }).join('');
 
-    if (who && !who.options.length) {
-      who.innerHTML = options.map(function (name) {
-        return '<option value="' + esc(name) + '">' + esc(name) + '</option>';
-      }).join('');
-    }
-    if (from && !from.options.length) {
-      from.innerHTML = options.map(function (name) {
-        return '<option value="' + esc(name) + '">' + esc(name) + '</option>';
-      }).join('');
-    }
+    ['#wish-who', '#note-from', '#note-from-2'].forEach(function (sel) {
+      var el = $(sel);
+      if (el && !el.options.length) el.innerHTML = html;
+    });
   }
 
   function renderSyncChip(mode, extra) {
@@ -692,7 +1090,204 @@
     renderCalendar();
     renderWishlist();
     renderNotes();
+    renderPokemon();
+    syncTabState();
     renderSyncChip(sync.enabled ? 'synced' : 'local');
+  }
+
+  /* =========================================================
+     스티커 · 포켓몬 동작
+     ========================================================= */
+  function addSticker(kidId, amount, reason, src, questId) {
+    var kid = state.kids[kidId];
+    if (!kid || amount <= 0) return;
+    kid.stickers += amount;
+    kid.stickerTotal = (kid.stickerTotal || 0) + amount;
+    kid.stickerLog.push({
+      id: uid(),
+      at: new Date().toISOString(),
+      amount: amount,
+      reason: reason,
+      src: src || 'parent',
+      questId: questId || ''
+    });
+    if (kid.stickerLog.length > LOG_LIMIT) kid.stickerLog = kid.stickerLog.slice(-LOG_LIMIT);
+  }
+
+  function removeQuestSticker(kidId, questId) {
+    var kid = state.kids[kidId];
+    if (!kid) return 0;
+    var todayKey = dateKey();
+    var removed = 0;
+    kid.stickerLog = kid.stickerLog.filter(function (e) {
+      var isToday = dateKey(new Date(e.at)) === todayKey;
+      if (e.src === 'quest' && e.questId === questId && isToday) {
+        removed += e.amount;
+        return false;
+      }
+      return true;
+    });
+    if (removed) {
+      kid.stickers = Math.max(0, kid.stickers - removed);
+      kid.stickerTotal = Math.max(0, (kid.stickerTotal || 0) - removed);
+    }
+    return removed;
+  }
+
+  function growPokemon() {
+    var kid = state.kids[currentKid];
+    var fam = kid ? familyOf(kid.active.family) : null;
+    if (!kid || !fam) return;
+
+    var stage = kid.active.stage;
+    var maxStage = fam.stages.length;
+    if (stage >= maxStage) { boxPokemon(); return; }
+
+    var need = stageCost(fam, stage);
+    if (kid.stickers < need) {
+      toast('스티커 ' + (need - kid.stickers) + '장이 더 필요해요. 퀘스트를 끝내거나 부모님 스티커를 받아요!', 'level');
+      return;
+    }
+
+    kid.stickers -= need;
+    kid.active.stage += 1;
+
+    var info = dexInfo(fam.stages[kid.active.stage - 1]);
+    var name = info ? info.name : '포켓몬';
+
+    touch();
+    renderPokemon();
+    renderKids();
+
+    if (kid.active.stage >= maxStage) {
+      toast('🎉 ' + iGa(name) + ' 최종 진화했어요! [보관함에 넣고 새 알 받기]를 눌러요', 'level');
+    } else if (stage === 0) {
+      toast('🥚 알에서 ' + iGa(name) + ' 태어났어요!', 'level');
+    } else {
+      toast('✨ ' + ro(name) + ' 진화했어요!', 'level');
+    }
+  }
+
+  function boxPokemon() {
+    var kid = state.kids[currentKid];
+    var fam = kid ? familyOf(kid.active.family) : null;
+    if (!kid || !fam) return;
+
+    var finalDex = fam.stages[fam.stages.length - 1];
+    var info = dexInfo(finalDex);
+
+    kid.box.push({
+      id: uid(),
+      dex: finalDex,
+      family: fam.id,
+      at: new Date().toISOString()
+    });
+
+    var nextFamily = pickEggFamily(currentKid);
+    kid.active = {
+      family: nextFamily,
+      stage: 0,
+      eggNo: (Number(kid.active.eggNo) || 1) + 1,
+      since: new Date().toISOString()
+    };
+
+    touch();
+    renderPokemon();
+    renderKids();
+    toast('🎉 ' + iGa(info ? info.name : '포켓몬') + ' 마을에 들어왔어요! 새 알을 받았어요 🥚', 'level');
+  }
+
+  function giveStickers(amount) {
+    var kid = state.kids[currentKid];
+    if (!kid) return;
+    var n = Math.max(1, Math.floor(Number(amount) || 1));
+    addSticker(currentKid, n, '부모님 칭찬 스티커', 'parent');
+    touch();
+    renderPokemon();
+    renderKids();
+    toast('⭐ ' + kidDef(currentKid).name + '에게 스티커 ' + n + '장을 줬어요');
+  }
+
+  /* ---------- 보관함 모달 ---------- */
+  function typeBadge(type) {
+    return '<span class="type-chip" data-type="' + esc(type) + '">' + esc(typeLabel(type)) + '</span>';
+  }
+
+  function sortBox(items, mode) {
+    var out = items.slice();
+    if (mode === 'dex') out.sort(function (a, b) { return a.dex - b.dex; });
+    else if (mode === 'name') out.sort(function (a, b) {
+      var na = (dexInfo(a.dex) || {}).name || '';
+      var nb = (dexInfo(b.dex) || {}).name || '';
+      return na.localeCompare(nb, 'ko');
+    });
+    else if (mode === 'old') out.sort(function (a, b) { return new Date(a.at) - new Date(b.at); });
+    else out.sort(function (a, b) { return new Date(b.at) - new Date(a.at); });
+    return out;
+  }
+
+  function showBoxDetail(id) {
+    var box = $('#box-detail');
+    if (!box) return;
+    var kid = state.kids[currentKid];
+    var item = null;
+    if (kid) kid.box.forEach(function (b) { if (b.id === id) item = b; });
+    if (!item) { box.hidden = true; box.innerHTML = ''; return; }
+
+    var info = dexInfo(item.dex);
+    var fam = familyOf(item.family);
+    var d = new Date(item.at);
+    var line = fam ? fam.stages.map(function (dx) {
+      var n = dexInfo(dx);
+      return n ? n.name : '?';
+    }).join(' → ') : '';
+
+    box.hidden = false;
+    box.innerHTML = '' +
+      '<span class="sprite box-detail__sprite" style="' + spriteStyle(item.dex, 124) + '" aria-hidden="true"></span>' +
+      '<div class="box-detail__body">' +
+        '<p class="box-detail__name">' + esc(info ? info.name : '포켓몬') + ' <span>No.' + item.dex + '</span></p>' +
+        '<p class="box-detail__line">' + esc(line) + '</p>' +
+        '<p class="box-detail__meta">' + typeBadge(info ? info.type : 'normal') + ' ' +
+          d.getFullYear() + '년 ' + (d.getMonth() + 1) + '월 ' + d.getDate() + '일 보관</p>' +
+      '</div>';
+  }
+
+  function renderBoxGrid(focusId) {
+    var kid = state.kids[currentKid];
+    if (!kid) return;
+    var select = $('#box-sort');
+    var mode = select ? select.value : 'recent';
+    var items = sortBox(kid.box, mode);
+
+    var def = kidDef(currentKid);
+    setText('#box-title', (def ? def.name : '아이') + '의 포켓몬 보관함');
+    setText('#box-lead', '다 키운 포켓몬 ' + items.length + '마리');
+
+    var grid = $('#box-grid');
+    if (grid) {
+      grid.innerHTML = items.map(function (item) {
+        var info = dexInfo(item.dex);
+        var d = new Date(item.at);
+        return '' +
+          '<button type="button" class="box-card' + (item.id === focusId ? ' is-focus' : '') + '" data-box-id="' + esc(item.id) + '">' +
+            '<span class="sprite box-card__sprite" style="' + spriteStyle(item.dex, 92) + '" aria-hidden="true"></span>' +
+            '<span class="box-card__name">' + esc(info ? info.name : '포켓몬') + '</span>' +
+            '<span class="box-card__meta">No.' + item.dex + ' · ' + (d.getMonth() + 1) + '/' + d.getDate() + '</span>' +
+            typeBadge(info ? info.type : 'normal') +
+          '</button>';
+      }).join('');
+    }
+
+    var empty = $('#box-empty');
+    if (empty) empty.hidden = items.length > 0;
+    showBoxDetail(focusId);
+  }
+
+  function openBox(focusId) {
+    if (!currentKid || !state.kids[currentKid]) return;
+    renderBoxGrid(focusId || '');
+    openModal('box-modal');
   }
 
   /* =========================================================
@@ -708,19 +1303,23 @@
     var beforeLevel = levelOf(kid.xp);
     quest.done = checked;
     kid.xp = Math.max(0, kid.xp + (checked ? quest.xp : -quest.xp));
-    var afterLevel = levelOf(kid.xp);
 
-    var def = data.kids.filter(function (k) { return k.id === kidId; })[0];
+    if (checked) addSticker(kidId, 1, '퀘스트: ' + quest.text, 'quest', questId);
+    else removeQuestSticker(kidId, questId);
+
+    var afterLevel = levelOf(kid.xp);
+    var def = kidDef(kidId);
     var name = def ? def.name : '';
 
     touch();
     refreshKid(kidId);
+    if (view === 'pokemon' && kidId === currentKid) renderPokemon();
 
     if (afterLevel > beforeLevel) {
       toast('🎉 ' + name + ' Lv.' + afterLevel + ' 달성!', 'level');
     } else if (checked) {
       var allDone = kid.quests.length > 0 && kid.quests.every(function (q) { return q.done; });
-      if (allDone) toast('🏆 ' + name + ' 오늘 퀘스트 올클리어!', 'level');
+      toast('⭐ 스티커 +1장 (퀘스트 완료)' + (allDone ? ' · 🏆 오늘 올클리어!' : ''), 'level');
     }
   }
 
@@ -746,10 +1345,14 @@
     if (!kid) return;
     var quest = kid.quests.filter(function (q) { return q.id === questId; })[0];
     if (!quest) return;
-    if (quest.done) kid.xp = Math.max(0, kid.xp - quest.xp);
+    if (quest.done) {
+      kid.xp = Math.max(0, kid.xp - quest.xp);
+      removeQuestSticker(kidId, questId);
+    }
     kid.quests = kid.quests.filter(function (q) { return q.id !== questId; });
     touch();
     refreshKid(kidId);
+    if (view === 'pokemon' && kidId === currentKid) renderPokemon();
     toast('퀘스트를 지웠어요');
   }
 
@@ -758,11 +1361,15 @@
     if (!kid) return;
     var hadDone = kid.quests.some(function (q) { return q.done; });
     if (!hadDone) { toast('이미 깨끗한 상태예요'); return; }
-    kid.quests.forEach(function (q) { q.done = false; });
+    kid.quests.forEach(function (q) {
+      if (q.done) removeQuestSticker(kidId, q.id);
+      q.done = false;
+    });
     kid.resetDate = dateKey();
     touch();
     refreshKid(kidId);
-    toast('하루 퀘스트를 초기화했어요 (XP는 그대로)');
+    if (view === 'pokemon' && kidId === currentKid) renderPokemon();
+    toast('오늘 퀘스트를 초기화했어요 (XP·스티커는 오늘 받은 만큼 돌아가요)');
   }
 
   /* =========================================================
@@ -853,6 +1460,15 @@
     var modal = document.getElementById(id);
     if (!modal) return;
     modal.hidden = false;
+  }
+
+  function closeModal(id) {
+    var modal = document.getElementById(id);
+    if (modal) modal.hidden = true;
+  }
+
+  function openSyncModal() {
+    openModal('sync-modal');
     var input = $('#sync-url');
     if (input) {
       input.value = sync.url;
@@ -861,11 +1477,6 @@
     setModalStatus(sync.enabled
       ? '연결됨 · 5초마다 다른 기기와 맞춰요. (' + sync.url + ')'
       : '아직 연결하지 않았어요. 비워두면 이 기기에만 저장됩니다.', sync.enabled ? 'ok' : '');
-  }
-
-  function closeModal(id) {
-    var modal = document.getElementById(id);
-    if (modal) modal.hidden = true;
   }
 
   function saveSync() {
@@ -961,81 +1572,124 @@
   /* =========================================================
      이벤트 연결
      ========================================================= */
-  function bindEvents() {
-    /* 아이들 퀘스트 */
+  function bindKids() {
     var grid = $('#kids-grid');
-    if (grid) {
-      grid.addEventListener('change', function (e) {
-        var input = e.target;
-        if (!input || input.getAttribute('data-action') !== 'toggle') return;
-        var holder = input.closest('.quest');
-        var card = input.closest('.kid-card');
-        if (!holder || !card) return;
-        toggleQuest(card.getAttribute('data-kid'), holder.getAttribute('data-quest'), input.checked);
-      });
+    if (!grid) return;
 
-      grid.addEventListener('click', function (e) {
-        var del = e.target.closest ? e.target.closest('[data-action="del-quest"]') : null;
-        if (del) {
-          e.preventDefault();
-          e.stopPropagation();
-          var holder = del.closest('.quest');
-          var card = del.closest('.kid-card');
-          if (holder && card) deleteQuest(card.getAttribute('data-kid'), holder.getAttribute('data-quest'));
-          return;
-        }
-        var reset = e.target.closest ? e.target.closest('[data-action="reset"]') : null;
-        if (reset) {
-          e.preventDefault();
-          resetKid(reset.getAttribute('data-kid'));
-        }
-      });
+    grid.addEventListener('change', function (e) {
+      var input = e.target;
+      if (!input || input.getAttribute('data-action') !== 'toggle') return;
+      var holder = input.closest('.quest');
+      var card = input.closest('.kid-card');
+      if (!holder || !card) return;
+      toggleQuest(card.getAttribute('data-kid'), holder.getAttribute('data-quest'), input.checked);
+    });
 
-      grid.addEventListener('submit', function (e) {
-        var form = e.target;
-        if (!form.classList || !form.classList.contains('quest-add')) return;
+    grid.addEventListener('click', function (e) {
+      var del = e.target.closest ? e.target.closest('[data-action="del-quest"]') : null;
+      if (del) {
         e.preventDefault();
-        var kidId = form.getAttribute('data-kid');
-        var textInput = form.querySelector('input[name="text"]');
-        var xpInput = form.querySelector('input[name="xp"]');
-        addQuest(kidId, textInput ? textInput.value : '', xpInput ? xpInput.value : 10);
+        e.stopPropagation();
+        var holder = del.closest('.quest');
+        var card = del.closest('.kid-card');
+        if (holder && card) deleteQuest(card.getAttribute('data-kid'), holder.getAttribute('data-quest'));
+        return;
+      }
+      var reset = e.target.closest ? e.target.closest('[data-action="reset"]') : null;
+      if (reset) {
+        e.preventDefault();
+        resetKid(reset.getAttribute('data-kid'));
+        return;
+      }
+      var village = e.target.closest ? e.target.closest('[data-action="go-village"]') : null;
+      if (village) {
+        e.preventDefault();
+        setView('pokemon', village.getAttribute('data-kid'));
+      }
+    });
+
+    grid.addEventListener('submit', function (e) {
+      var form = e.target;
+      if (!form.classList || !form.classList.contains('quest-add')) return;
+      e.preventDefault();
+      var kidId = form.getAttribute('data-kid');
+      var textInput = form.querySelector('input[name="text"]');
+      var xpInput = form.querySelector('input[name="xp"]');
+      addQuest(kidId, textInput ? textInput.value : '', xpInput ? xpInput.value : 10);
+    });
+  }
+
+  function bindPokemon() {
+    var root = $('#view-pokemon');
+    if (!root) return;
+
+    root.addEventListener('click', function (e) {
+      var target = e.target;
+      if (target.closest && target.closest('#btn-grow')) { growPokemon(); return; }
+      if (target.closest && target.closest('#btn-box')) { boxPokemon(); return; }
+      if (target.closest && target.closest('#btn-box-list')) { openBox(''); return; }
+
+      var give = target.closest ? target.closest('[data-give]') : null;
+      if (give) { giveStickers(give.getAttribute('data-give')); return; }
+
+      var fig = target.closest ? target.closest('[data-box-id]') : null;
+      if (fig) { openBox(fig.getAttribute('data-box-id')); }
+    });
+  }
+
+  function bindBoxModal() {
+    var grid = $('#box-grid');
+    if (grid) {
+      grid.addEventListener('click', function (e) {
+        var card = e.target.closest ? e.target.closest('[data-box-id]') : null;
+        if (!card) return;
+        renderBoxGrid(card.getAttribute('data-box-id'));
       });
-
-      /* 하루 초기화 직후에도 폼 입력이 사라지지 않도록: 입력 중인 값은 유지하지 않아도 무방 */
     }
+    var sort = $('#box-sort');
+    if (sort) sort.addEventListener('change', function () { renderBoxGrid(''); });
+  }
 
-    /* 캘린더 */
-    var calGrid = $('#cal-grid');
-    if (calGrid) {
-      calGrid.addEventListener('click', function (e) {
-        var btn = e.target.closest ? e.target.closest('.day') : null;
-        if (!btn || btn.classList.contains('is-blank')) return;
-        var key = btn.getAttribute('data-date');
-        if (!key) return;
-        selectedDate = key;
-        $$('.day', calGrid).forEach(function (d) { d.classList.remove('is-selected'); });
-        btn.classList.add('is-selected');
-        renderDayDetail();
-      });
-    }
+  function bindCalendar() {
+    CAL_TARGETS.forEach(function (target) {
+      var grid = $(target.grid);
+      if (grid) {
+        grid.addEventListener('click', function (e) {
+          var btn = e.target.closest ? e.target.closest('.day') : null;
+          if (!btn || btn.classList.contains('is-blank')) return;
+          var key = btn.getAttribute('data-date');
+          if (!key) return;
+          selectedDate = key;
+          CAL_TARGETS.forEach(function (t) {
+            var g = $(t.grid);
+            if (!g) return;
+            $$('.day', g).forEach(function (d) { d.classList.remove('is-selected'); });
+          });
+          $$('.day', grid).forEach(function (d) {
+            if (d.getAttribute('data-date') === key) d.classList.add('is-selected');
+          });
+          renderDayDetail();
+        });
+      }
 
-    var prev = $('#cal-prev');
-    if (prev) {
-      prev.addEventListener('click', function () {
-        calMonth = calMonth.m === 0 ? { y: calMonth.y - 1, m: 11 } : { y: calMonth.y, m: calMonth.m - 1 };
-        renderCalendar();
-      });
-    }
+      var prev = $(target.prev);
+      if (prev) {
+        prev.addEventListener('click', function () {
+          calMonth = calMonth.m === 0 ? { y: calMonth.y - 1, m: 11 } : { y: calMonth.y, m: calMonth.m - 1 };
+          renderCalendar();
+        });
+      }
+      var next = $(target.next);
+      if (next) {
+        next.addEventListener('click', function () {
+          calMonth = calMonth.m === 11 ? { y: calMonth.y + 1, m: 0 } : { y: calMonth.y, m: calMonth.m + 1 };
+          renderCalendar();
+        });
+      }
+    });
+  }
 
-    var next = $('#cal-next');
-    if (next) {
-      next.addEventListener('click', function () {
-        calMonth = calMonth.m === 11 ? { y: calMonth.y + 1, m: 0 } : { y: calMonth.y, m: calMonth.m + 1 };
-        renderCalendar();
-      });
-    }
-
-    /* 위시리스트 */
+  function bindWishlist() {
     var wishForm = $('#wish-form');
     if (wishForm) {
       wishForm.addEventListener('submit', function (e) {
@@ -1102,41 +1756,45 @@
         toast('산 것들을 지웠어요');
       });
     }
+  }
 
-    /* 우체통 */
-    var noteForm = $('#note-form');
-    if (noteForm) {
-      noteForm.addEventListener('submit', function (e) {
-        e.preventDefault();
-        var from = $('#note-from');
-        var text = $('#note-text');
-        var value = text ? text.value.trim() : '';
-        if (!value) { if (text) text.focus(); return; }
+  function bindNotes() {
+    NOTE_FORMS.forEach(function (spec) {
+      var form = $(spec.form);
+      if (form) {
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+          var from = $(spec.from);
+          var text = $(spec.text);
+          var value = text ? text.value.trim() : '';
+          if (!value) { if (text) text.focus(); return; }
 
-        state.notes.push({
-          id: uid(),
-          from: from ? from.value : '',
-          text: value.slice(0, 120),
-          createdAt: new Date().toISOString()
+          state.notes.push({
+            id: uid(),
+            from: from ? from.value : '',
+            text: value.slice(0, 120),
+            createdAt: new Date().toISOString()
+          });
+
+          if (text) { text.value = ''; text.focus(); }
+          touch();
+          renderNotes();
+          toast('메모를 남겼어요');
         });
+      }
+    });
 
-        if (text) { text.value = ''; text.focus(); }
-        touch();
-        renderNotes();
-        toast('메모를 남겼어요');
-      });
-    }
-
-    var quick = $('#quick-notes');
-    if (quick) {
+    QUICK_BOXES.forEach(function (sel) {
+      var quick = $(sel);
+      if (!quick) return;
       quick.addEventListener('click', function (e) {
         var chip = e.target.closest ? e.target.closest('[data-quick]') : null;
         if (!chip) return;
         var value = chip.getAttribute('data-quick');
-        var from = $('#note-from');
+        var rootForm = quick.parentNode ? quick.parentNode.querySelector('select') : null;
         state.notes.push({
           id: uid(),
-          from: from ? from.value : '',
+          from: rootForm ? rootForm.value : '',
           text: value,
           createdAt: new Date().toISOString()
         });
@@ -1144,11 +1802,12 @@
         renderNotes();
         toast('보냈어요: ' + value);
       });
-    }
+    });
 
-    var notesList = $('#notes');
-    if (notesList) {
-      notesList.addEventListener('click', function (e) {
+    NOTE_LISTS.forEach(function (sel) {
+      var list = $(sel);
+      if (!list) return;
+      list.addEventListener('click', function (e) {
         var del = e.target.closest ? e.target.closest('[data-action="note-del"]') : null;
         if (!del) return;
         var row = del.closest('.note');
@@ -1158,15 +1817,37 @@
         touch();
         renderNotes();
       });
+    });
+  }
+
+  function bindEvents() {
+    bindKids();
+    bindPokemon();
+    bindBoxModal();
+    bindCalendar();
+    bindWishlist();
+    bindNotes();
+
+    /* 상단 탭 */
+    var tabbar = $('#tabbar');
+    if (tabbar) {
+      tabbar.addEventListener('click', function (e) {
+        var btn = e.target.closest ? e.target.closest('.tab') : null;
+        if (!btn) return;
+        var k = btn.getAttribute('data-kid');
+        var v = btn.getAttribute('data-view');
+        if (k) setView('pokemon', k);
+        else if (v) setView(v);
+      });
     }
 
-    /* 동기화 모달 */
+    /* 모달 닫기 */
     $$('[data-close]').forEach(function (el) {
       el.addEventListener('click', function () { closeModal(el.getAttribute('data-close')); });
     });
 
     var btnSync = $('#btn-sync');
-    if (btnSync) btnSync.addEventListener('click', function () { openModal('sync-modal'); });
+    if (btnSync) btnSync.addEventListener('click', openSyncModal);
 
     var syncSave = $('#sync-save');
     if (syncSave) syncSave.addEventListener('click', saveSync);
@@ -1181,6 +1862,9 @@
       });
     }
 
+    var btnFull = $('#btn-fullscreen');
+    if (btnFull) btnFull.addEventListener('click', toggleWall);
+
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') {
         var open = $$('.modal').filter(function (m) { return !m.hidden; });
@@ -1192,12 +1876,8 @@
       }
     });
 
-    /* 대기화면 */
-    var btnFull = $('#btn-fullscreen');
-    if (btnFull) btnFull.addEventListener('click', toggleWall);
-
     document.addEventListener('fullscreenchange', function () {
-      if (!isFullscreen() && document.body.classList.contains('wall-mode') && !btnFull.__ignore) {
+      if (!isFullscreen() && document.body.classList.contains('wall-mode')) {
         document.body.classList.remove('wall-mode');
         setWallButton(false);
       }
@@ -1213,6 +1893,10 @@
         state = normalizeState(incoming);
         renderAll();
       } catch (err) { /* 무시 */ }
+    });
+
+    window.addEventListener('hashchange', function () {
+      readHash();
     });
 
     window.addEventListener('online', function () { if (sync.enabled) pullState(); });
@@ -1259,14 +1943,22 @@
 
     state = normalizeState(stored || { _ts: Date.now() });
 
+    if (data && Array.isArray(data.kids) && data.kids.length) {
+      currentKid = data.kids[0].id;
+    }
+    if (!currentKid) currentKid = 'idun';
+
     var changed = data ? ensureDailyReset() : false;
     if (changed || !stored) saveLocal();
 
     buildEventIndex();
+    renderTabs();
     renderSelects();
     renderQuickNotes();
     renderAll();
     setWallButton(false);
+
+    if (!readHash()) setView('pokemon', currentKid, { silent: true });
 
     bindEvents();
     startSync();
