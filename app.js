@@ -18,8 +18,8 @@
   var VIEWS = ['pokemon', 'dashboard', 'quest', 'schedule', 'family'];
 
   var STATE_ICON = {
-    local: '💾 이 기기에 저장 중',
-    syncing: '🔄 동기화하는 중…',
+    local: '💾 이 기기 저장',
+    syncing: '🔄 동기화 중…',
     synced: '✅ 동기화됨',
     error: '⚠️ 동기화 오류'
   };
@@ -473,7 +473,7 @@
     var clockText = '지금은 ' + meridiem + ' ' + hour12 + ':' + pad(now.getMinutes());
 
     setText('#clock', clockText);
-    setText('#today-date', now.getFullYear() + '년 ' + (now.getMonth() + 1) + '월 ' + now.getDate() + '일 ' + WEEKDAYS[now.getDay()]);
+    setText('#today-date', (now.getMonth() + 1) + '월 ' + now.getDate() + '일 (' + WEEKDAYS_SHORT[now.getDay()] + ')');
 
     var subText = (now.getMonth() + 1) + '월 ' + now.getDate() + '일 ' + WEEKDAYS[now.getDay()] + ' 기준';
     ['#today-date-sub', '#today-date-sub2', '#today-date-sub3'].forEach(function (sel) {
@@ -701,7 +701,7 @@
     var def = kidDef(currentKid);
     if (!kid || !def) return;
 
-    setText('#village-kid', def.name);
+    setText('#village-title', def.name + '의 포켓몬 마을');
     setText('#village-count', '다 키운 포켓몬 ' + kid.box.length + '마리');
 
     var wrap = $('#meadow-figures');

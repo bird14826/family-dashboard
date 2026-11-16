@@ -1177,8 +1177,8 @@ body.wall-mode .quest__del { display: none; }
   flex: 0 0 auto;
 }
 .topbar__when { text-align: right; line-height: 1.2; }
-.topbar__clock { font-family: var(--font-title); font-size: 1.02rem; color: var(--ink); }
-.topbar__date { font-size: 0.72rem; color: var(--ink-faint); }
+.topbar__clock { font-family: var(--font-title); font-size: 1rem; color: var(--ink); white-space: nowrap; }
+.topbar__date { font-size: 0.72rem; color: var(--ink-faint); white-space: nowrap; }
 .topbar__meta .sync-chip { font-size: 0.74rem; }
 
 /* =========================================================
@@ -1424,8 +1424,10 @@ body.wall-mode .quest__del { display: none; }
   overflow: hidden;
   border: 1px solid #b6d9a2;
   background:
-    radial-gradient(90% 46% at 50% 0%, #f0fbff 0%, rgba(240, 251, 255, 0) 62%),
-    linear-gradient(180deg, #b6e5ff 0%, #d7f0ff 31%, #e6f6cd 31.5%, #c2e79a 45%, #a6da78 70%, #8ccc60 100%);
+    radial-gradient(115% 40% at 8% 54%, rgba(180, 226, 142, 0.95) 0 45%, rgba(180, 226, 142, 0) 46%),
+    radial-gradient(120% 44% at 88% 58%, rgba(166, 218, 118, 0.95) 0 44%, rgba(166, 218, 118, 0) 45%),
+    radial-gradient(90% 40% at 50% 0%, #f1fbff 0%, rgba(241, 251, 255, 0) 62%),
+    linear-gradient(180deg, #b6e5ff 0%, #d7f0ff 30%, #e9f8d2 30.5%, #c6ea9f 44%, #a9db7b 68%, #8ccc60 100%);
 }
 
 .meadow__bg { position: absolute; inset: 0; pointer-events: none; }
@@ -1460,22 +1462,7 @@ body.wall-mode .quest__del { display: none; }
 .cloud--2 { left: 57%; top: 6%; width: 62px; transform: scale(0.86); }
 .cloud--3 { left: 78%; top: 17%; width: 52px; transform: scale(0.7); opacity: 0.85; }
 
-.hill { position: absolute; border-radius: 50% 50% 0 0; }
-.hill--back {
-  left: -14%;
-  right: 26%;
-  bottom: 27%;
-  height: 34%;
-  background: linear-gradient(180deg, #b6e58f, #9bd46f);
-  opacity: 0.9;
-}
-.hill--front {
-  right: -16%;
-  left: 30%;
-  bottom: 24%;
-  height: 30%;
-  background: linear-gradient(180deg, #a9dd80, #88ca5d);
-}
+.hill { display: none; }
 
 .house {
   position: absolute;
@@ -1693,7 +1680,7 @@ body.wall-mode .quest__del { display: none; }
    보관함 모달
    ========================================================= */
 .modal__panel--wide { max-width: 860px; }
-.box-tools { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.box-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .field--sort { flex: 0 0 150px; }
 .box-detail {
   display: flex;
@@ -1756,6 +1743,11 @@ body.wall-mode .quest__del { display: none; }
 @media (max-width: 1024px) {
   .poke-layout { grid-template-columns: minmax(250px, 300px) minmax(0, 1fr); }
   .meadow { min-height: 290px; }
+}
+
+/* 태블릿 가로: 포켓몬 화면이 화면 높이를 채우도록 */
+@media (min-width: 901px) {
+  .poke-layout { min-height: calc(100vh - 104px); }
 }
 
 @media (max-width: 900px) {
