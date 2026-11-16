@@ -34,9 +34,9 @@
 
   /* 마을에 포켓몬을 놓는 자리 (겹치지 않게 3줄로 배치) */
   var SLOTS = [
-    { x: 10, y: 41, k: 0.82 }, { x: 30, y: 36, k: 0.78 }, { x: 50, y: 34, k: 0.8 }, { x: 70, y: 37, k: 0.78 }, { x: 88, y: 41, k: 0.82 },
-    { x: 18, y: 59, k: 0.95 }, { x: 39, y: 55, k: 0.9 }, { x: 60, y: 57, k: 0.95 }, { x: 81, y: 54, k: 0.9 },
-    { x: 8, y: 78, k: 1.06 }, { x: 28, y: 81, k: 1 }, { x: 49, y: 77, k: 1.1 }, { x: 70, y: 81, k: 1 }, { x: 90, y: 77, k: 1.04 }
+    { x: 10, y: 43, k: 0.82 }, { x: 30, y: 39, k: 0.78 }, { x: 50, y: 37, k: 0.8 }, { x: 70, y: 39, k: 0.78 }, { x: 88, y: 43, k: 0.82 },
+    { x: 18, y: 62, k: 0.95 }, { x: 39, y: 59, k: 0.9 }, { x: 60, y: 61, k: 0.95 }, { x: 81, y: 58, k: 0.9 },
+    { x: 8, y: 82, k: 1.05 }, { x: 28, y: 84, k: 1 }, { x: 49, y: 81, k: 1.08 }, { x: 70, y: 84, k: 1 }, { x: 90, y: 81, k: 1.04 }
   ];
 
   var data = null;
@@ -695,6 +695,13 @@
     }
   }
 
+  function figureBaseSize() {
+    var w = window.innerWidth;
+    if (w < 600) return 58;
+    if (w < 900) return 72;
+    return 96;
+  }
+
   function renderVillage() {
     if (!pokeData() || !currentKid) return;
     var kid = state.kids[currentKid];
@@ -716,7 +723,7 @@
     wrap.innerHTML = list.slice(0, SLOTS.length).map(function (item, i) {
       var slot = SLOTS[i];
       var info = dexInfo(item.dex);
-      var size = Math.round(78 * slot.k);
+      var size = Math.round(figureBaseSize() * slot.k);
       return '' +
         '<button type="button" class="figure" data-box-id="' + esc(item.id) + '"' +
           ' style="--x:' + slot.x + '%;--y:' + slot.y + '%;--k:' + slot.k + '"' +
@@ -753,7 +760,7 @@
     if (!list) return;
 
     var todayKey = dateKey();
-    list.innerHTML = log.slice(0, 14).map(function (e) {
+    list.innerHTML = log.slice(0, 8).map(function (e) {
       var d = new Date(e.at);
       var label = dateKey(d) === todayKey ? '오늘' : (d.getMonth() + 1) + '/' + d.getDate() + ' ' + WEEKDAYS_SHORT[d.getDay()];
       var src = e.src === 'quest' ? '퀘스트' : (e.src === 'parent' ? '부모님' : '보너스');
@@ -1893,6 +1900,15 @@
         state = normalizeState(incoming);
         renderAll();
       } catch (err) { /* 무시 */ }
+    });
+
+    /* 화면 폭이 바뀌면 마을 포켓몬 크기도 다시 맞춤 */
+    var resizeTimer = null;
+    window.addEventListener('resize', function () {
+      if (resizeTimer) window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(function () {
+        if (view === 'pokemon') renderVillage();
+      }, 200);
     });
 
     window.addEventListener('hashchange', function () {
