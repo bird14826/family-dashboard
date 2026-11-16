@@ -1292,8 +1292,8 @@ body.wall-mode .quest__del { display: none; }
 
 .egg {
   position: relative;
-  width: 112px;
-  height: 146px;
+  width: 124px;
+  height: 160px;
   margin-bottom: 12px;
   border-radius: 50% 50% 47% 47% / 60% 60% 40% 40%;
   background:
@@ -1424,10 +1424,10 @@ body.wall-mode .quest__del { display: none; }
   overflow: hidden;
   border: 1px solid #b6d9a2;
   background:
-    radial-gradient(115% 40% at 8% 54%, rgba(180, 226, 142, 0.95) 0 45%, rgba(180, 226, 142, 0) 46%),
-    radial-gradient(120% 44% at 88% 58%, rgba(166, 218, 118, 0.95) 0 44%, rgba(166, 218, 118, 0) 45%),
-    radial-gradient(90% 40% at 50% 0%, #f1fbff 0%, rgba(241, 251, 255, 0) 62%),
-    linear-gradient(180deg, #b6e5ff 0%, #d7f0ff 30%, #e9f8d2 30.5%, #c6ea9f 44%, #a9db7b 68%, #8ccc60 100%);
+    radial-gradient(115% 38% at 6% 62%, rgba(182, 228, 145, 0.9) 0 44%, rgba(182, 228, 145, 0) 45%),
+    radial-gradient(120% 40% at 92% 68%, rgba(166, 218, 118, 0.9) 0 43%, rgba(166, 218, 118, 0) 44%),
+    radial-gradient(90% 34% at 50% 0%, #f1fbff 0%, rgba(241, 251, 255, 0) 62%),
+    linear-gradient(180deg, #b6e5ff 0%, #d7f0ff 33%, #eaf9d4 33.5%, #c9eba3 47%, #abe07c 70%, #8ccc60 100%);
 }
 
 .meadow__bg { position: absolute; inset: 0; pointer-events: none; }
@@ -1484,8 +1484,8 @@ body.wall-mode .quest__del { display: none; }
   border-right: 20px solid transparent;
   border-bottom: 12px solid #d9634b;
 }
-.house--1 { left: 63%; top: 27%; }
-.house--2 { left: 73%; top: 30%; transform: scale(0.86); opacity: 0.92; }
+.house--1 { left: 63%; top: 28%; }
+.house--2 { left: 73%; top: 30.5%; transform: scale(0.86); opacity: 0.92; }
 
 .meadow__figures { position: absolute; inset: 0; }
 

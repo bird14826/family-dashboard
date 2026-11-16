@@ -34,9 +34,9 @@
 
   /* 마을에 포켓몬을 놓는 자리 (겹치지 않게 3줄로 배치) */
   var SLOTS = [
-    { x: 8, y: 30, k: 0.84 }, { x: 27, y: 25, k: 0.78 }, { x: 47, y: 23, k: 0.8 }, { x: 67, y: 26, k: 0.78 }, { x: 86, y: 31, k: 0.84 },
-    { x: 16, y: 51, k: 0.96 }, { x: 37, y: 48, k: 0.92 }, { x: 58, y: 49, k: 0.96 }, { x: 79, y: 47, k: 0.92 },
-    { x: 9, y: 72, k: 1.08 }, { x: 28, y: 76, k: 1.02 }, { x: 48, y: 71, k: 1.1 }, { x: 69, y: 76, k: 1.02 }, { x: 88, y: 72, k: 1.06 }
+    { x: 10, y: 41, k: 0.82 }, { x: 30, y: 36, k: 0.78 }, { x: 50, y: 34, k: 0.8 }, { x: 70, y: 37, k: 0.78 }, { x: 88, y: 41, k: 0.82 },
+    { x: 18, y: 59, k: 0.95 }, { x: 39, y: 55, k: 0.9 }, { x: 60, y: 57, k: 0.95 }, { x: 81, y: 54, k: 0.9 },
+    { x: 8, y: 78, k: 1.06 }, { x: 28, y: 81, k: 1 }, { x: 49, y: 77, k: 1.1 }, { x: 70, y: 81, k: 1 }, { x: 90, y: 77, k: 1.04 }
   ];
 
   var data = null;
@@ -716,7 +716,7 @@
     wrap.innerHTML = list.slice(0, SLOTS.length).map(function (item, i) {
       var slot = SLOTS[i];
       var info = dexInfo(item.dex);
-      var size = Math.round(74 * slot.k);
+      var size = Math.round(78 * slot.k);
       return '' +
         '<button type="button" class="figure" data-box-id="' + esc(item.id) + '"' +
           ' style="--x:' + slot.x + '%;--y:' + slot.y + '%;--k:' + slot.k + '"' +
