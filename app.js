@@ -36,7 +36,7 @@
   var SLOTS = [
     { x: 10, y: 43, k: 0.82 }, { x: 30, y: 39, k: 0.78 }, { x: 50, y: 37, k: 0.8 }, { x: 70, y: 39, k: 0.78 }, { x: 88, y: 43, k: 0.82 },
     { x: 18, y: 62, k: 0.95 }, { x: 39, y: 59, k: 0.9 }, { x: 60, y: 61, k: 0.95 }, { x: 81, y: 58, k: 0.9 },
-    { x: 8, y: 78, k: 1.02 }, { x: 28, y: 80, k: 0.96 }, { x: 49, y: 77, k: 1.05 }, { x: 70, y: 80, k: 0.96 }, { x: 90, y: 77, k: 1 }
+    { x: 8, y: 76, k: 0.98 }, { x: 28, y: 78, k: 0.92 }, { x: 49, y: 75, k: 1 }, { x: 70, y: 78, k: 0.92 }, { x: 90, y: 75, k: 0.96 }
   ];
 
   var data = null;
@@ -635,7 +635,7 @@
         var info = dexInfo(dex);
         eggEl.hidden = true;
         spriteEl.hidden = false;
-        spriteEl.setAttribute('style', spriteStyle(dex, 196));
+        spriteEl.setAttribute('style', spriteStyle(dex, stageSpriteSize()));
         spriteEl.setAttribute('role', 'img');
         spriteEl.setAttribute('aria-label', info ? info.name : '포켓몬');
       }
@@ -704,9 +704,18 @@
 
   function figureBaseSize() {
     var w = window.innerWidth;
+    var h = window.innerHeight;
     if (w < 600) return 60;
     if (w < 900) return 76;
+    if (h < 860) return 92;
     return 106;
+  }
+
+  function stageSpriteSize() {
+    var h = window.innerHeight;
+    if (h < 820) return 148;
+    if (h < 950) return 172;
+    return 196;
   }
 
   function renderVillage() {
@@ -1918,7 +1927,7 @@
     window.addEventListener('resize', function () {
       if (resizeTimer) window.clearTimeout(resizeTimer);
       resizeTimer = window.setTimeout(function () {
-        if (view === 'pokemon') renderVillage();
+        if (view === 'pokemon') { renderVillage(); renderNursery(); }
       }, 200);
     });
 
