@@ -257,7 +257,7 @@
   ],
   "pokemon": {
     "sprite": {
-      "file": "pokemon/sheet.png",
+      "file": "pokemon-sheet.png",
       "cols": 8,
       "rows": 4,
       "cell": 256

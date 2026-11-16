@@ -1585,7 +1585,7 @@ body.wall-mode .quest__del { display: none; }
 }
 .sticker-row__src { font-size: 0.68rem; color: var(--ink-faint); white-space: nowrap; }
 
-/* ---------- 포켓몬 스프라이트 (pokemon/sheet.png 8 × 4칸) ---------- */
+/* ---------- 포켓몬 스프라이트 (pokemon-sheet.png 8 × 4칸) ---------- */
 .sprite {
   display: inline-block;
   width: var(--s, 96px);
